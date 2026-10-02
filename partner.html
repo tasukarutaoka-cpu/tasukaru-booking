@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>提携先 売上登録｜タスカル</title>
+<style>
+  :root{--bg:#f3f8fc;--card:#fff;--ink:#1d2a35;--muted:#6b7b88;--line:#dce7ef;--ac:#1d6fd8;--soft:#e6f0fb;--err:#c0392b;--ok:#1f8a5b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif;line-height:1.7}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 16px 80px}
+  h1{font-size:22px;margin:0 0 4px}
+  .lead{color:var(--muted);font-size:14px;margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px}
+  .card h2{font-size:16px;margin:0 0 12px}
+  label{display:block;font-weight:700;font-size:13px;margin:10px 0 4px}
+  input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:16px;background:#fff;color:var(--ink);font-family:inherit}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0 10px}
+  .grid .w2{grid-column:span 2}
+  .grid .w4{grid-column:span 4}
+  @media(max-width:640px){.grid{grid-template-columns:1fr 1fr}.grid .w4{grid-column:span 2}}
+  .sale{border:1px solid var(--line);border-radius:12px;padding:6px 14px 14px;margin-bottom:12px;position:relative}
+  .sale .no{font-weight:800;color:var(--ac);font-size:14px;margin-top:6px}
+  .sale .rm{position:absolute;top:8px;right:10px;border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px}
+  .btn{display:inline-block;background:var(--ac);color:#fff;border:0;border-radius:10px;padding:12px 18px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit}
+  .btn.sub{background:#fff;color:var(--ac);border:1px solid var(--ac)}
+  .btn:disabled{opacity:.6;cursor:wait}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  .msg{display:none;border-radius:10px;padding:12px 14px;margin-top:12px;white-space:pre-line;font-size:14px}
+  .msg.err{background:#fdecea;color:var(--err)}
+  .msg.ok{background:#e7f6ee;color:var(--ok)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}
+  td.n,th.n{text-align:right}
+  .tot{font-weight:800}
+  .who{background:var(--soft);color:var(--ac);border-radius:999px;padding:4px 12px;font-weight:700;font-size:13px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>提携先 売上登録</h1>
+  <p class="lead">作業が完了した案件の売上を登録してください。登録した内容は集計に自動で反映されます。</p>
+
+  <section class="card" id="login">
+    <h2>アクセスコードを入力</h2>
+    <label for="code">アクセスコード</label>
+    <input id="code" autocomplete="off" autocapitalize="characters" placeholder="例：AB3CD4EF5G">
+    <div style="margin-top:12px"><button class="btn" id="loginBtn" type="button">はじめる</button></div>
+    <div class="msg err" id="loginErr" role="alert"></div>
+  </section>
+
+  <div id="main" class="hidden">
+    <div class="bar" style="margin-bottom:12px">
+      <span class="who" id="who"></span>
+      <button class="btn sub" id="logout" type="button">別のコードで入る</button>
+    </div>
+
+    <section class="card">
+      <h2>売上を登録する</h2>
+      <div id="sales"></div>
+      <div class="bar">
+        <button class="btn sub" id="add" type="button">＋ もう1件追加</button>
+        <button class="btn" id="send" type="button">まとめて登録する</button>
+      </div>
+      <div class="msg" id="sendMsg" role="alert"></div>
+    </section>
+
+    <section class="card">
+      <div class="bar">
+        <h2 style="margin:0">登録済みの売上</h2>
+        <input type="month" id="month" style="width:auto">
+      </div>
+      <div id="history" style="margin-top:10px"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+// GitHub Pages など GAS 以外に置くときは、デプロイした GAS ウェブアプリの URL を入れてください
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyhPFd3LAKPFS077EZD_g030ABH-vXp9ctmcTjZkajWby5f_TF6-8fgWtbQX6QxcfB7/exec';
+const BOOT = /*__BOOT__*/null || {};
+
+const $ = id => document.getElementById(id);
+let CODE = '', LISTS = { areas: [], payments: [], media: [] };
+
+function call(fn, args, action) {
+  if (window.google && google.script && google.script.run) {
+    return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn].apply(null, args));
+  }
+  if (!GAS_URL) return Promise.reject(new Error('送信先（GAS_URL）が設定されていません。'));
+  const body = { action: action, code: args[0] };
+  if (action === 'partnerSubmit') body.rows = args[1];
+  if (action === 'partnerHistory') body.month = args[1];
+  return fetch(GAS_URL, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json());
+}
+
+function show(el, text, kind) {
+  el.className = 'msg ' + kind;
+  el.textContent = text;
+  el.style.display = text ? 'block' : 'none';
+}
+
+function store(v) { try { v ? sessionStorage.setItem('tsk_partner', v) : sessionStorage.removeItem('tsk_partner'); } catch (e) {} }
+function stored() { try { return sessionStorage.getItem('tsk_partner') || ''; } catch (e) { return ''; } }
+
+function login(code) {
+  $('loginBtn').disabled = true;
+  call('partnerLogin', [code], 'partnerLogin').then(res => {
+    if (!res.ok) throw new Error(res.error);
+    CODE = code;
+    store(code);
+    LISTS = res;
+    $('who').textContent = res.partner + ' 様';
+    $('login').classList.add('hidden');
+    $('main').classList.remove('hidden');
+    $('sales').innerHTML = '';
+    addSale();
+    loadHistory();
+  }).catch(e => {
+    store('');
+    show($('loginErr'), e.message || String(e), 'err');
+  }).finally(() => { $('loginBtn').disabled = false; });
+}
+
+function opts(list, blank) {
+  return (blank ? '<option value="">選択</option>' : '') + list.map(v => '<option>' + v.replace(/</g, '&lt;') + '</option>').join('');
+}
+
+function today() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function addSale() {
+  const n = $('sales').children.length + 1;
+  const div = document.createElement('div');
+  div.className = 'sale';
+  div.innerHTML =
+    '<div class="no">' + n + '件目</div><button type="button" class="rm">削除</button>' +
+    '<div class="grid">' +
+    '<div><label>作業日</label><input type="date" data-k="date" value="' + today() + '"></div>' +
+    '<div class="w2"><label>お客様名</label><input data-k="customer"></div>' +
+    '<div><label>エリア</label><select data-k="area">' + opts(LISTS.areas, true) + '</select></div>' +
+    '<div><label>媒体</label><select data-k="media">' + opts(LISTS.media, true) + '</select></div>' +
+    '<div><label>支払方法</label><select data-k="payment">' + opts(LISTS.payments, true) + '</select></div>' +
+    '<div><label>台数</label><input type="number" min="0" data-k="units" value="1"></div>' +
+    '<div><label>売上金額（円）</label><input type="number" min="0" step="100" data-k="amount"></div>' +
+    '<div class="w2"><label>担当者名</label><input data-k="staff"></div>' +
+    '<div class="w2"><label>金額変更</label><select data-k="changed"><option>無</option><option>有</option></select></div>' +
+    '<div class="w4"><label>備考（追加作業・金額変更の理由など）</label><input data-k="note"></div>' +
+    '</div>';
+  div.querySelector('.rm').onclick = () => { div.remove(); renumber(); };
+  $('sales').appendChild(div);
+  renumber();
+}
+
+function renumber() {
+  Array.from($('sales').children).forEach((d, i) => {
+    d.querySelector('.no').textContent = (i + 1) + '件目';
+    d.querySelector('.rm').style.display = $('sales').children.length > 1 ? '' : 'none';
+  });
+}
+
+function collect() {
+  return Array.from($('sales').children).map(d => {
+    const o = {};
+    d.querySelectorAll('[data-k]').forEach(el => { o[el.dataset.k] = el.value; });
+    return o;
+  });
+}
+
+function loadHistory() {
+  const m = $('month').value;
+  $('history').textContent = '読み込み中…';
+  call('partnerHistory', [CODE, m], 'partnerHistory').then(res => {
+    if (!res.ok) throw new Error(res.error);
+    if (!res.rows.length) { $('history').textContent = 'この月の登録はまだありません。'; return; }
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    $('history').innerHTML = '<table><thead><tr><th>作業日</th><th>お客様名</th><th>エリア</th><th>支払</th><th>担当者</th><th class="n">売上</th></tr></thead><tbody>' +
+      res.rows.map(r => '<tr><td>' + esc(r.date) + '</td><td>' + esc(r.customer) + '</td><td>' + esc(r.area) + '</td><td>' + esc(r.payment) +
+        '</td><td>' + esc(r.staff) + '</td><td class="n">' + r.amount.toLocaleString() + '</td></tr>').join('') +
+      '<tr class="tot"><td colspan="5">合計（' + res.rows.length + '件）</td><td class="n">' + res.total.toLocaleString() + '</td></tr></tbody></table>';
+  }).catch(e => { $('history').textContent = e.message || String(e); });
+}
+
+$('loginBtn').onclick = () => {
+  const code = $('code').value.trim().toUpperCase();
+  if (!code) { show($('loginErr'), 'アクセスコードを入力してください。', 'err'); return; }
+  show($('loginErr'), '', 'err');
+  login(code);
+};
+$('code').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+$('logout').onclick = () => { store(''); CODE = ''; $('main').classList.add('hidden'); $('login').classList.remove('hidden'); $('code').value = ''; };
+$('add').onclick = addSale;
+$('month').addEventListener('change', loadHistory);
+$('send').onclick = () => {
+  const rows = collect();
+  const btn = $('send');
+  btn.disabled = true;
+  show($('sendMsg'), '', 'ok');
+  call('partnerSubmit', [CODE, rows], 'partnerSubmit').then(res => {
+    if (!res.ok) throw new Error(res.error);
+    show($('sendMsg'), res.count + '件の売上を登録しました。', 'ok');
+    $('sales').innerHTML = '';
+    addSale();
+    loadHistory();
+  }).catch(e => show($('sendMsg'), e.message || String(e), 'err'))
+    .finally(() => { btn.disabled = false; });
+};
+
+$('month').value = today().slice(0, 7);
+const saved = stored();
+if (saved) { $('code').value = saved; login(saved); }
+</script>
+</body>
+</html>
