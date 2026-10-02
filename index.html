@@ -158,7 +158,7 @@ const OPT_NOTE = { set3: '別々なら9,500円' };
 
 const $ = id => document.getElementById(id);
 const yen = n => '¥' + n.toLocaleString('ja-JP');
-const state = { units: 0, cleaningFunc: 0, opt: {} };
+const state = { units: 1, cleaningFunc: 0, opt: {} };
 Object.keys(PRICES.options).forEach(k => { state.opt[k] = 0; });
 
 function stepper(key, label, sub, get, set, max) {
@@ -171,14 +171,14 @@ function stepper(key, label, sub, get, set, max) {
   const out = row.querySelector('output');
   minus.onclick = () => { set(get() - 1); render(); };
   plus.onclick = () => { set(get() + 1); render(); };
-  row.update = () => { out.textContent = get(); minus.disabled = get() <= 0; plus.disabled = get() >= max(); };
+  row.update = () => { out.textContent = get(); minus.disabled = get() <= (key === 'units' ? 1 : 0); plus.disabled = get() >= max(); };
   return row;
 }
 
 const rows = [];
 function build() {
   rows.push(stepper('units', 'エアコン台数（壁掛け）', PRICES.unit.toLocaleString() + '円/台',
-    () => state.units, v => { state.units = Math.max(0, Math.min(20, v)); }, () => 20));
+    () => state.units, v => { state.units = Math.max(1, Math.min(20, v)); }, () => 20));
   rows.push(stepper('cf', 'うち、お掃除機能付き', '＋' + PRICES.cleaningFunc.toLocaleString() + '円/台',
     () => state.cleaningFunc, v => { state.cleaningFunc = Math.max(0, v); }, () => state.units));
   rows.slice(0, 2).forEach(r => $('units').appendChild(r));
@@ -255,7 +255,6 @@ function collect() {
 
 function checkRequired() {
   const missing = [];
-  if (state.units < 1) missing.push('エアコン台数（1台以上）');
   document.querySelectorAll('#f [required]').forEach(el => {
     if (!el.value.trim()) {
       const lab = document.querySelector('label[for="' + el.id + '"]');
